@@ -53,6 +53,7 @@ bool found_device = false, debug = false, verbose = false;
 char *app_path = NULL;
 char *device_id = NULL;
 char *args = NULL;
+char *xcode_path = NULL;
 int timeout = 0;
 CFStringRef last_path = NULL;
 service_conn_t gdbfd;
@@ -70,12 +71,36 @@ Boolean path_exists(CFTypeRef path) {
     }
 }
 
+void get_xcode_path() {
+    if (xcode_path == NULL) {
+        FILE *fp;
+        char path[1035];
+        fp = popen("xcode-select -print-path", "r");
+        if (fp != NULL) {
+            fgets(path, sizeof(path)-1, fp);
+        }
+        int len = strlen(path);
+        if (path[len - 1] == '\n')
+            path[len - 1] = 0;
+        pclose(fp);
+        xcode_path = strdup(path);
+    }
+}
+
 CFStringRef copy_device_support_path(AMDeviceRef device) {
     CFStringRef version = AMDeviceCopyValue(device, 0, CFSTR("ProductVersion"));
+    
+    if (CFStringGetLength(version) > 3)
+    {
+        version = CFStringCreateWithSubstring(NULL, version, CFRangeMake(0, 3));
+    }
+    
     CFStringRef build = AMDeviceCopyValue(device, 0, CFSTR("BuildVersion"));
     const char* home = getenv("HOME");
     CFStringRef path;
     bool found = false;
+    
+    get_xcode_path();
 
     path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Library/Developer/Xcode/iOS DeviceSupport/%@ (%@)"), home, version, build);
     found = path_exists(path);
@@ -97,7 +122,17 @@ CFStringRef copy_device_support_path(AMDeviceRef device) {
     }
     if (!found)
     {
-        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/DeviceSupport/Latest"));
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/%@ (%@)"), xcode_path, version, build);
+        found = path_exists(path);
+    }
+    if (!found)
+    {
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/%@"), xcode_path, version);
+        found = path_exists(path);
+    }
+    if (!found)
+    {
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/Latest"), xcode_path);
         found = path_exists(path);
     }
 
@@ -116,11 +151,19 @@ CFStringRef copy_device_support_path(AMDeviceRef device) {
 
 CFStringRef copy_developer_disk_image_path(AMDeviceRef device) {
     CFStringRef version = AMDeviceCopyValue(device, 0, CFSTR("ProductVersion"));
+    
+    if (CFStringGetLength(version) > 3)
+    {
+        version = CFStringCreateWithSubstring(NULL, version, CFRangeMake(0, 3));
+    }
+    
     CFStringRef build = AMDeviceCopyValue(device, 0, CFSTR("BuildVersion"));
     const char *home = getenv("HOME");
     CFStringRef path;
     bool found = false;
-
+    
+    get_xcode_path();
+    
     path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Library/Developer/Xcode/iOS DeviceSupport/%@ (%@)/DeveloperDiskImage.dmg"), home, version, build);
     found = path_exists(path);
 
@@ -146,7 +189,17 @@ CFStringRef copy_developer_disk_image_path(AMDeviceRef device) {
     }
     if (!found)
     {
-        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/DeviceSupport/Latest/DeveloperDiskImage.dmg"));
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/%@ (%@)/DeveloperDiskImage.dmg"), xcode_path, version, build);
+        found = path_exists(path);
+    }
+    if (!found)
+    {
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/%@/DeveloperDiskImage.dmg"), xcode_path, version);
+        found = path_exists(path);
+    }
+    if (!found)
+    {
+        path = CFStringCreateWithFormat(NULL, NULL, CFSTR("%s/Platforms/iPhoneOS.platform/DeviceSupport/Latest"), xcode_path);
         found = path_exists(path);
     }
 
